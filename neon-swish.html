@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>NEON SWISH</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --pink: #ff2d78;
+    --blue: #00f0ff;
+    --pink-glow: rgba(255,45,120,0.6);
+    --blue-glow: rgba(0,240,255,0.6);
+    --bg: #000008;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+
+  body {
+    background: var(--bg);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: 'Orbitron', monospace;
+  }
+
+  #gameWrapper {
+    position: relative;
+    width: 100vw;
+    max-width: 430px;
+    height: 100vh;
+    max-height: 932px;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* SCREENS */
+  .screen {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    background: var(--bg);
+  }
+
+  .screen.hidden { display: none; }
+
+  /* Grid background lines */
+  .screen::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image:
+      linear-gradient(rgba(0,240,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,240,255,0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* Scanlines */
+  .screen::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .screen > * { position: relative; z-index: 2; }
+
+  /* TITLE SCREEN */
+  .title-logo {
+    font-size: clamp(42px, 12vw, 64px);
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 4px;
+    line-height: 1;
+    text-align: center;
+    background: linear-gradient(135deg, var(--pink), var(--blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 20px var(--pink)) drop-shadow(0 0 40px var(--blue));
+    animation: titlePulse 2s ease-in-out infinite;
+    margin-bottom: 8px;
+  }
+
+  .title-sub {
+    font-size: clamp(11px, 3vw, 14px);
+    letter-spacing: 8px;
+    color: var(--blue);
+    text-shadow: 0 0 10px var(--blue);
+    margin-bottom: 50px;
+    font-style: italic;
+  }
+
+  @keyframes titlePulse {
+    0%, 100% { filter: drop-shadow(0 0 20px var(--pink)) drop-shadow(0 0 40px var(--blue)); }
+    50% { filter: drop-shadow(0 0 35px var(--pink)) drop-shadow(0 0 60px var(--blue)); }
+  }
+
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 5px;
+    color: var(--pink);
+    text-shadow: 0 0 8px var(--pink);
+    margin-bottom: 16px;
+    font-style: italic;
+  }
+
+  /* Color Picker */
+  .color-picker {
+    display: grid;
+    grid-template-columns: repeat(5, 48px);
+    grid-template-rows: repeat(2, 48px);
+    gap: 14px;
+    margin-bottom: 40px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .color-swatch {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 3px solid transparent;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .color-swatch.selected {
+    border-color: white;
+    transform: scale(1.2);
+    box-shadow: 0 0 15px currentColor;
+  }
+
+  .color-swatch::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .color-swatch.selected::after { opacity: 0.5; }
+
+  .neon-btn {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(14px, 4vw, 18px);
+    font-weight: 700;
+    font-style: italic;
+    letter-spacing: 4px;
+    padding: 16px 48px;
+    background: transparent;
+    border: 2px solid var(--pink);
+    color: var(--pink);
+    text-shadow: 0 0 10px var(--pink);
+    box-shadow: 0 0 20px var(--pink-glow), inset 0 0 20px rgba(255,45,120,0.1);
+    cursor: pointer;
+    transition: all 0.2s;
+    clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  }
+
+  .neon-btn:hover, .neon-btn:active {
+    background: rgba(255,45,120,0.2);
+    box-shadow: 0 0 40px var(--pink-glow), inset 0 0 30px rgba(255,45,120,0.2);
+    transform: scale(1.05);
+  }
+
+  .neon-btn.blue {
+    border-color: var(--blue);
+    color: var(--blue);
+    text-shadow: 0 0 10px var(--blue);
+    box-shadow: 0 0 20px var(--blue-glow), inset 0 0 20px rgba(0,240,255,0.1);
+  }
+
+  .neon-btn.blue:hover, .neon-btn.blue:active {
+    background: rgba(0,240,255,0.15);
+    box-shadow: 0 0 40px var(--blue-glow), inset 0 0 30px rgba(0,240,255,0.2);
+  }
+
+  /* GAME OVER SCREEN */
+  .gameover-title {
+    font-size: clamp(36px, 10vw, 52px);
+    font-weight: 900;
+    font-style: italic;
+    color: var(--pink);
+    text-shadow: 0 0 20px var(--pink), 0 0 40px var(--pink);
+    letter-spacing: 3px;
+    margin-bottom: 10px;
+    animation: flicker 0.1s infinite;
+  }
+
+  @keyframes flicker {
+    0%, 98%, 100% { opacity: 1; }
+    99% { opacity: 0.8; }
+  }
+
+  .gameover-msg {
+    font-size: clamp(11px, 3vw, 13px);
+    color: var(--blue);
+    text-shadow: 0 0 8px var(--blue);
+    letter-spacing: 3px;
+    margin-bottom: 44px;
+    font-style: italic;
+    text-align: center;
+    padding: 0 30px;
+  }
+
+  .score-display {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .score-display .score-val {
+    font-size: clamp(52px, 15vw, 72px);
+    font-weight: 900;
+    font-style: italic;
+    background: linear-gradient(135deg, var(--pink), var(--blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 15px var(--pink));
+    line-height: 1;
+  }
+
+  .score-display .score-label {
+    font-size: 10px;
+    letter-spacing: 6px;
+    color: rgba(255,255,255,0.4);
+    margin-top: 4px;
+  }
+
+  .highscore-display {
+    font-size: clamp(13px, 3.5vw, 16px);
+    color: var(--blue);
+    text-shadow: 0 0 10px var(--blue);
+    letter-spacing: 3px;
+    margin-bottom: 44px;
+    font-style: italic;
+  }
+
+  /* HUD overlay */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 16px 20px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  .hud-score {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(28px, 8vw, 38px);
+    font-weight: 900;
+    font-style: italic;
+    color: white;
+    text-shadow: 0 0 15px var(--pink), 0 0 30px var(--pink);
+    line-height: 1;
+  }
+
+  .hud-right {
+    text-align: right;
+  }
+
+  .hud-lives {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+    margin-bottom: 4px;
+  }
+
+  .life-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--pink);
+    box-shadow: 0 0 8px var(--pink);
+    transition: all 0.3s;
+  }
+
+  .life-dot.lost {
+    background: rgba(255,45,120,0.15);
+    box-shadow: none;
+    border: 1px solid rgba(255,45,120,0.3);
+  }
+
+  .hud-best {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(0,240,255,0.6);
+    font-style: italic;
+  }
+
+  /* Level badge */
+  #levelBadge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(28px, 8vw, 40px);
+    font-weight: 900;
+    font-style: italic;
+    color: var(--blue);
+    text-shadow: 0 0 20px var(--blue), 0 0 40px var(--blue);
+    letter-spacing: 4px;
+    z-index: 8;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  /* Combo flash */
+  #comboFlash {
+    position: absolute;
+    top: 35%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(18px, 5vw, 24px);
+    font-weight: 700;
+    font-style: italic;
+    color: var(--pink);
+    text-shadow: 0 0 15px var(--pink);
+    z-index: 8;
+    opacity: 0;
+    pointer-events: none;
+    letter-spacing: 2px;
+  }
+
+  #musicToggle {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 6;
+    background: transparent;
+    border: 1px solid rgba(0,240,255,0.3);
+    color: rgba(0,240,255,0.5);
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 6px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    font-style: italic;
+  }
+
+  #musicToggle:active { opacity: 0.7; }
+
+  /* How to play hint */
+  .how-to-play {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(0, 240, 255, 0.55);
+    text-shadow: 0 0 6px rgba(0,240,255,0.3);
+    text-align: center;
+    font-style: italic;
+    margin-top: 18px;
+    line-height: 1.8;
+    padding: 0 24px;
+  }
+
+  /* Pause button */
+  #pauseBtn {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    z-index: 6;
+    background: transparent;
+    border: 1px solid rgba(0,240,255,0.3);
+    color: rgba(0,240,255,0.5);
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 6px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    font-style: italic;
+  }
+  #pauseBtn:active { opacity: 0.7; }
+
+  /* Pause screen */
+  #pauseScreen {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 8, 0.88);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 15;
+  }
+  #pauseScreen.hidden { display: none; }
+
+  .pause-title {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(36px, 10vw, 48px);
+    font-weight: 900;
+    font-style: italic;
+    color: var(--blue);
+    text-shadow: 0 0 20px var(--blue), 0 0 40px var(--blue);
+    letter-spacing: 6px;
+    margin-bottom: 14px;
+  }
+
+  .pause-sub {
+    font-family: 'Orbitron', monospace;
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: rgba(0,240,255,0.45);
+    font-style: italic;
+    margin-bottom: 48px;
+  }
+
+  /* Screen flash */
+  #screenFlash {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.08s ease-in;
+  }
+
+  /* Initials input */
+  .initials-input {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(28px, 8vw, 36px);
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 10px;
+    text-align: center;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--pink);
+    color: var(--pink);
+    text-shadow: 0 0 10px var(--pink);
+    width: 120px;
+    outline: none;
+    margin-bottom: 36px;
+    text-transform: uppercase;
+    caret-color: var(--blue);
+  }
+
+  .initials-input::placeholder {
+    color: rgba(255, 45, 120, 0.3);
+    letter-spacing: 8px;
+  }
+
+  /* Initials HUD display */
+  #hudInitials {
+    font-family: 'Orbitron', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: rgba(0, 240, 255, 0.7);
+    text-shadow: 0 0 6px var(--blue);
+    font-style: italic;
+    text-align: right;
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+<div id="gameWrapper">
+
+  <!-- CANVAS (game renders here) -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD (shown during gameplay) -->
+  <div id="hud" class="hidden">
+    <div class="hud-score" id="hudScore">0</div>
+    <div class="hud-right">
+      <div class="hud-lives" id="hudLives"></div>
+      <div class="hud-best" id="hudBest">BEST: 0</div>
+      <div id="hudInitials"></div>
+    </div>
+  </div>
+
+  <!-- Level badge -->
+  <div id="levelBadge">LEVEL UP</div>
+  <div id="comboFlash"></div>
+
+  <!-- TITLE SCREEN -->
+  <div class="screen" id="titleScreen">
+    <div class="title-logo">NEON<br>SWISH</div>
+    <div class="title-sub">ARCADE BASKETBALL</div>
+    <div class="section-label">CHOOSE YOUR BALL</div>
+    <div class="color-picker" id="colorPicker"></div>
+    <div class="section-label">YOUR INITIALS</div>
+    <input class="initials-input" id="initialsInput" type="text" maxlength="2" placeholder="AA" autocomplete="off" autocorrect="off" spellcheck="false" />
+    <button class="neon-btn" id="playBtn">PLAY</button>
+    <div class="how-to-play">
+      HOLD &amp; DRAG TO AIM<br>
+      RELEASE TO SHOOT<br>
+      SHOOT FROM BOTTOM HALF
+    </div>
+  </div>
+
+  <!-- GAME OVER SCREEN -->
+  <div class="screen hidden" id="gameOverScreen">
+    <div class="gameover-title">GAME OVER</div>
+    <div class="gameover-msg" id="gameOverMsg">BETTER LUCK NEXT TIME</div>
+    <div class="highscore-display" id="gameOverInitials" style="color:var(--pink);text-shadow:0 0 10px var(--pink);margin-bottom:16px;"></div>
+    <div class="score-display">
+      <div class="score-val" id="finalScore">0</div>
+      <div class="score-label">POINTS</div>
+    </div>
+    <div class="highscore-display" id="highScoreDisplay">BEST: 0</div>
+    <button class="neon-btn blue" id="replayBtn">PLAY AGAIN</button>
+  </div>
+
+  <!-- Screen flash overlay -->
+  <div id="screenFlash"></div>
+
+  <!-- Pause screen -->
+  <div id="pauseScreen" class="hidden">
+    <div class="pause-title">PAUSED</div>
+    <div class="pause-sub">GAME ON HOLD</div>
+    <button class="neon-btn blue" id="resumeBtn">RESUME</button>
+  </div>
+
+  <!-- Pause button -->
+  <button id="pauseBtn" class="hidden">⏸ PAUSE</button>
+
+  <!-- Music toggle -->
+  <button id="musicToggle" class="hidden">♪ ON</button>
+
+</div>
+
+<script>
+// =============================================
+// NEON SWISH - Main Game Logic
+// =============================================
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const wrapper = document.getElementById('gameWrapper');
+
+// Screens & UI
+const titleScreen = document.getElementById('titleScreen');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const hud = document.getElementById('hud');
+const hudScore = document.getElementById('hudScore');
+const hudLives = document.getElementById('hudLives');
+const hudBest = document.getElementById('hudBest');
+const finalScore = document.getElementById('finalScore');
+const highScoreDisplay = document.getElementById('highScoreDisplay');
+const gameOverMsg = document.getElementById('gameOverMsg');
+const levelBadge = document.getElementById('levelBadge');
+const comboFlash = document.getElementById('comboFlash');
+const musicToggle = document.getElementById('musicToggle');
+
+// Resize canvas to fill wrapper
+function resizeCanvas() {
+  canvas.width = wrapper.clientWidth;
+  canvas.height = wrapper.clientHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ---- BALL COLORS ----
+const BALL_COLORS = [
+  { color: '#ff6b00', glow: '#ff6b00', name: 'Classic Orange' },
+  { color: '#ff2d78', glow: '#ff2d78', name: 'Neon Pink' },
+  { color: '#00f0ff', glow: '#00f0ff', name: 'Electric Blue' },
+  { color: '#39ff14', glow: '#39ff14', name: 'Slime Green' },
+  { color: '#ffff00', glow: '#ffff00', name: 'Neon Yellow' },
+  { color: '#bf00ff', glow: '#bf00ff', name: 'Ultraviolet' },
+  { color: '#ffffff', glow: '#aaaaff', name: 'Ghost White' },
+  { color: '#ff3030', glow: '#ff3030', name: 'Crimson' },
+  { color: '#00fa9a', glow: '#00fa9a', name: 'Seafoam' },
+  { color: '#ffa500', glow: '#ffa500', name: 'Gold' },
+];
+
+let selectedColorIdx = 0;
+
+// Build color swatches
+const colorPicker = document.getElementById('colorPicker');
+BALL_COLORS.forEach((c, i) => {
+  const sw = document.createElement('div');
+  sw.className = 'color-swatch' + (i === 0 ? ' selected' : '');
+  sw.style.background = c.color;
+  sw.style.boxShadow = `0 0 12px ${c.glow}`;
+  sw.style.color = c.glow;
+  sw.addEventListener('click', () => {
+    document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+    sw.classList.add('selected');
+    selectedColorIdx = i;
+  });
+  colorPicker.appendChild(sw);
+});
+
+// ---- HIGH SCORE ----
+let highScore = parseInt(localStorage.getItem('neonSwishHigh') || '0');
+let playerInitials = localStorage.getItem('neonSwishInitials') || '';
+// Pre-fill initials input if saved
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('neonSwishInitials');
+  if (saved) document.getElementById('initialsInput').value = saved;
+});
+
+// Immediately reflect saved high score in HUD and game over screen defaults
+document.getElementById('hudBest').textContent = 'BEST: ' + highScore;
+document.getElementById('highScoreDisplay').textContent = 'BEST: ' + highScore;
+
+// ---- GAME STATE ----
+let gameState = 'title'; // title | playing | gameover
+let score = 0;
+let lives = 3;
+let level = 1;
+let consecutiveMakes = 0;
+let frameId;
+
+// Physics & objects
+let ball = null;
+let hoop = null;
+let obstacles = [];
+let particles = [];
+let trails = [];
+let stars = [];
+
+// Input state
+let pointerDown = false;
+let pointerStart = null;
+let pointerCurrent = null;
+let aimActive = false;
+
+// Hoop color cycling
+const HOOP_COLORS = ['#ff2d78','#00f0ff','#bf00ff','#39ff14','#ffff00','#ff6b00'];
+let hoopColorIdx = 0;
+let hoopColorTimer = 0;
+
+// ---- SCREEN FLASH ----
+const screenFlash = document.getElementById('screenFlash');
+let flashTimeout = null;
+
+function triggerFlash(color) {
+  clearTimeout(flashTimeout);
+  screenFlash.style.transition = 'none';
+  screenFlash.style.background = color;
+  screenFlash.style.opacity = '0.35';
+  flashTimeout = setTimeout(() => {
+    screenFlash.style.transition = 'opacity 0.35s ease-out';
+    screenFlash.style.opacity = '0';
+  }, 80);
+}
+
+// ---- STARS (background) ----
+function initStars() {
+  stars = [];
+  for (let i = 0; i < 80; i++) {
+    stars.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.5 + 0.3,
+      alpha: Math.random() * 0.6 + 0.2,
+      twinkle: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+// ---- HOOP ----
+function createHoop() {
+  const hoopW = canvas.width * 0.22;
+  return {
+    x: canvas.width / 2,
+    y: canvas.height * 0.22,
+    width: hoopW,
+    rimW: hoopW * 0.08,
+    // Movement
+    moveDir: Math.random() > 0.5 ? 1 : -1,
+    speed: getHoopSpeed(),
+    // Visual
+    colorIdx: 0,
+  };
+}
+
+function getHoopSpeed() {
+  // Static for first 3, then ramps up by score bracket
+  if (score < 3)  return 0;                          // 0-2:  completely still
+  if (score < 6)  return canvas.width * 0.0010;      // 3-5:  very slow
+  if (score < 9)  return canvas.width * 0.0022;      // 6-8:  medium
+  if (score < 17) return canvas.width * 0.0036;      // 9-16: faster
+  if (score < 25) return canvas.width * 0.0052;      // 17-24: fast
+  return canvas.width * 0.0070;                      // 25+:  max speed
+}
+
+function updateHoop() {
+  if (!hoop) return;
+  hoop.speed = getHoopSpeed();
+  // Keep hoop centered and still during first 3 points
+  if (score < 3) {
+    hoop.x = canvas.width / 2;
+    return;
+  }
+  hoop.x += hoop.moveDir * hoop.speed;
+  const margin = hoop.width / 2 + 20;
+  if (hoop.x > canvas.width - margin) { hoop.x = canvas.width - margin; hoop.moveDir = -1; }
+  if (hoop.x < margin) { hoop.x = margin; hoop.moveDir = 1; }
+
+  // Color cycle
+  hoopColorTimer++;
+  if (hoopColorTimer > Math.max(40, 120 - level * 8)) {
+    hoopColorTimer = 0;
+    hoopColorIdx = (hoopColorIdx + 1) % HOOP_COLORS.length;
+  }
+}
+
+// ---- BALL ----
+function createBall(x, y) {
+  return {
+    x, y,
+    vx: 0, vy: 0,
+    radius: canvas.width * 0.045,
+    launched: false,
+    bounced: false, // has it hit a rim?
+    scored: false,
+    missed: false,
+    passedHoopY: false,
+    wasAboveHoop: false, // must pass above hoop before scoring
+    wentThroughBottom: false, // went up through hoop from below — disqualified
+  };
+}
+
+// ---- OBSTACLES ----
+const OBS_TYPES = ['blocker', 'platform', 'defender'];
+
+function spawnObstacle() {
+  const type = OBS_TYPES[Math.floor(Math.random() * OBS_TYPES.length)];
+  const w = canvas.width * (0.12 + Math.random() * 0.14);
+  const h = type === 'platform' ? canvas.height * 0.025 : canvas.height * 0.06;
+  return {
+    type,
+    x: Math.random() * (canvas.width - w - 40) + 20,
+    y: canvas.height * (0.30 + Math.random() * 0.17), // always in upper half, between hoop and midpoint
+    w, h,
+    moveDir: Math.random() > 0.5 ? 1 : -1,
+    speed: canvas.width * (0.001 + Math.random() * 0.002 + level * 0.0005),
+    color: HOOP_COLORS[Math.floor(Math.random() * HOOP_COLORS.length)],
+  };
+}
+
+function updateObstacles() {
+  obstacles.forEach(obs => {
+    obs.x += obs.moveDir * obs.speed;
+    if (obs.x < 0) { obs.x = 0; obs.moveDir = 1; }
+    if (obs.x + obs.w > canvas.width) { obs.x = canvas.width - obs.w; obs.moveDir = -1; }
+  });
+}
+
+function getObstacleCount() {
+  if (score < 6)  return 0;   // 0-5:   no obstacles
+  if (score < 9)  return 1;   // 6-8:   1 obstacle
+  if (score < 17) return 2;   // 9-16:  2 obstacles
+  if (score < 25) return 3;   // 17-24: 3 obstacles
+  return 4;                   // 25+:   max 4 obstacles
+}
+
+// ---- PARTICLES ----
+function spawnScoreParticles(x, y, color) {
+  for (let i = 0; i < 22; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 5 + 2;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      alpha: 1,
+      size: Math.random() * 5 + 2,
+      color,
+      life: 1,
+      decay: Math.random() * 0.03 + 0.02
+    });
+  }
+}
+
+function spawnMissParticles(x, y) {
+  for (let i = 0; i < 12; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 3 + 1;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      alpha: 1,
+      size: Math.random() * 4 + 1,
+      color: '#ff2d78',
+      life: 1,
+      decay: Math.random() * 0.04 + 0.03
+    });
+  }
+}
+
+function updateParticles() {
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.life -= p.decay;
+    p.alpha = p.life;
+  });
+}
+
+// ---- SCREEN SHAKE ----
+let shakeAmt = 0;
+let shakeX = 0, shakeY = 0;
+
+function triggerShake(amount) {
+  shakeAmt = amount;
+}
+
+function updateShake() {
+  if (shakeAmt > 0) {
+    shakeX = (Math.random() - 0.5) * shakeAmt * 2;
+    shakeY = (Math.random() - 0.5) * shakeAmt * 2;
+    shakeAmt *= 0.8;
+    if (shakeAmt < 0.5) { shakeAmt = 0; shakeX = 0; shakeY = 0; }
+  }
+}
+
+// ---- GRID BACKGROUND ----
+function drawBackground() {
+  ctx.fillStyle = '#000008';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(0,240,255,0.04)';
+  ctx.lineWidth = 1;
+  const gridSize = 40;
+  for (let x = 0; x < canvas.width; x += gridSize) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y < canvas.height; y += gridSize) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+
+  // Stars
+  stars.forEach(s => {
+    s.twinkle += 0.03;
+    const a = s.alpha * (0.6 + 0.4 * Math.sin(s.twinkle));
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${a})`;
+    ctx.fill();
+  });
+
+  // Bottom floor glow
+  const floorGrad = ctx.createLinearGradient(0, canvas.height * 0.85, 0, canvas.height);
+  floorGrad.addColorStop(0, 'transparent');
+  floorGrad.addColorStop(1, 'rgba(255,45,120,0.08)');
+  ctx.fillStyle = floorGrad;
+  ctx.fillRect(0, canvas.height * 0.85, canvas.width, canvas.height * 0.15);
+}
+
+// ---- DRAW HOOP ----
+function drawHoop() {
+  if (!hoop) return;
+  const color = HOOP_COLORS[hoopColorIdx];
+  const x = hoop.x, y = hoop.y;
+  const hw = hoop.width / 2;
+  const rimW = hoop.rimW;
+
+  // Backboard — subtle, so it doesn't look like an obstacle
+  ctx.save();
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(180,180,200,0.25)';
+  ctx.lineWidth = 2;
+  const bw = hoop.width * 0.7;
+  const bh = hoop.width * 0.45;
+  ctx.strokeRect(x - bw / 2, y - bh - rimW * 4, bw, bh);
+  ctx.restore();
+
+  // Net (drawn as lines below rim)
+  ctx.save();
+  ctx.strokeStyle = `rgba(${hexToRgb(color)},0.5)`;
+  ctx.lineWidth = 1.2;
+  const netSegs = 6;
+  const netH = hoop.width * 0.28;
+  for (let i = 0; i <= netSegs; i++) {
+    const nx = (x - hw) + (hoop.width / netSegs) * i;
+    // Converge toward center bottom
+    const bottomX = x + (nx - x) * 0.3;
+    ctx.beginPath();
+    ctx.moveTo(nx, y);
+    ctx.lineTo(bottomX, y + netH);
+    ctx.stroke();
+  }
+  // Horizontal net lines
+  for (let r = 1; r <= 3; r++) {
+    const ratio = r / 3;
+    const lx = x - hw + hw * ratio * 0.35;
+    const rx = x + hw - hw * ratio * 0.35;
+    const ny2 = y + netH * (ratio * 0.9);
+    ctx.beginPath();
+    ctx.moveTo(lx, ny2);
+    ctx.lineTo(rx, ny2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Left rim
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 20;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x - hw, y, rimW, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Right rim
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 20;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x + hw, y, rimW, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Rim bar
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 15;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = rimW * 1.8;
+  ctx.beginPath();
+  ctx.moveTo(x - hw, y);
+  ctx.lineTo(x + hw, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `${r},${g},${b}`;
+}
+
+// ---- DRAW BALL ----
+function drawBall() {
+  if (!ball) return;
+  const c = BALL_COLORS[selectedColorIdx];
+
+  // Trail
+  trails.push({ x: ball.x, y: ball.y, alpha: 0.4 });
+  if (trails.length > 10) trails.shift();
+  if (ball.launched) {
+    trails.forEach((t, i) => {
+      const a = t.alpha * (i / trails.length) * 0.5;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, ball.radius * (i / trails.length) * 0.7, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${hexToRgb(c.color)},${a})`;
+      ctx.fill();
+    });
+  }
+
+  // Ball glow
+  ctx.save();
+  ctx.shadowColor = c.glow;
+  ctx.shadowBlur = 25;
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+  ctx.fillStyle = c.color;
+  ctx.fill();
+  ctx.restore();
+
+  // Ball lines (like a basketball)
+  ctx.save();
+  ctx.strokeStyle = `rgba(0,0,0,0.4)`;
+  ctx.lineWidth = 1.5;
+  // Horizontal line
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.beginPath();
+  ctx.moveTo(ball.x - ball.radius, ball.y);
+  ctx.lineTo(ball.x + ball.radius, ball.y);
+  ctx.stroke();
+  // Vertical curve
+  ctx.beginPath();
+  ctx.moveTo(ball.x, ball.y - ball.radius);
+  ctx.bezierCurveTo(ball.x + ball.radius * 0.4, ball.y - ball.radius * 0.5, ball.x + ball.radius * 0.4, ball.y + ball.radius * 0.5, ball.x, ball.y + ball.radius);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(ball.x, ball.y - ball.radius);
+  ctx.bezierCurveTo(ball.x - ball.radius * 0.4, ball.y - ball.radius * 0.5, ball.x - ball.radius * 0.4, ball.y + ball.radius * 0.5, ball.x, ball.y + ball.radius);
+  ctx.stroke();
+  ctx.restore();
+
+  // Shine
+  ctx.save();
+  const shine = ctx.createRadialGradient(ball.x - ball.radius * 0.3, ball.y - ball.radius * 0.3, 0, ball.x, ball.y, ball.radius);
+  shine.addColorStop(0, 'rgba(255,255,255,0.35)');
+  shine.addColorStop(1, 'transparent');
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+  ctx.fillStyle = shine;
+  ctx.fill();
+  ctx.restore();
+}
+
+// ---- DRAW OBSTACLES ----
+function drawObstacles() {
+  obstacles.forEach(obs => {
+    ctx.save();
+    ctx.shadowColor = obs.color;
+    ctx.shadowBlur = 14;
+    ctx.strokeStyle = obs.color;
+    ctx.lineWidth = 2.5;
+    if (obs.type === 'platform') {
+      ctx.fillStyle = `rgba(${hexToRgb(obs.color)},0.15)`;
+      ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+      ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+    } else if (obs.type === 'blocker') {
+      ctx.fillStyle = `rgba(${hexToRgb(obs.color)},0.1)`;
+      ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+      ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+      // X mark
+      ctx.beginPath();
+      ctx.moveTo(obs.x + 4, obs.y + 4);
+      ctx.lineTo(obs.x + obs.w - 4, obs.y + obs.h - 4);
+      ctx.moveTo(obs.x + obs.w - 4, obs.y + 4);
+      ctx.lineTo(obs.x + 4, obs.y + obs.h - 4);
+      ctx.stroke();
+    } else { // defender
+      // Triangle shape
+      ctx.fillStyle = `rgba(${hexToRgb(obs.color)},0.15)`;
+      ctx.beginPath();
+      ctx.moveTo(obs.x + obs.w / 2, obs.y);
+      ctx.lineTo(obs.x + obs.w, obs.y + obs.h);
+      ctx.lineTo(obs.x, obs.y + obs.h);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  });
+}
+
+// ---- DRAW AIM LINE ----
+function drawAimLine() {
+  if (!pointerDown || !pointerStart || !pointerCurrent || !aimActive) return;
+  if (ball && ball.launched) return; // hide arc once ball is flying
+
+  const dx = pointerStart.x - pointerCurrent.x;
+  const dy = pointerStart.y - pointerCurrent.y;
+  const power = Math.min(Math.sqrt(dx * dx + dy * dy), 220);
+  if (power < 10) return;
+
+  const maxPow = 220;
+  const ratio = power / maxPow; // 0 = no power, 1 = full power
+
+  // Color interpolates blue (low) → white (mid) → pink (full)
+  function powerColor(alpha) {
+    if (ratio < 0.5) {
+      const t = ratio / 0.5;
+      const r = Math.round(0 + t * 255);
+      const g = Math.round(240 - t * 160);
+      const b = 255;
+      return `rgba(${r},${g},${b},${alpha})`;
+    } else {
+      const t = (ratio - 0.5) / 0.5;
+      const r = 255;
+      const g = Math.round(80 - t * 80);
+      const b = Math.round(255 - t * 177);
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+  }
+
+  const angle = Math.atan2(dy, dx);
+  const vx = Math.cos(angle) * power * 0.13;
+  const vy = Math.sin(angle) * power * 0.13;
+
+  // Number of dots scales with power: 8 at low end → 36 at full
+  const numDots = Math.round(8 + ratio * 28);
+  // Max dot size scales with power: 3px → 8px
+  const maxDotSize = 3 + ratio * 5;
+  // Glow intensity scales with power
+  const glowBlur = 4 + ratio * 18;
+
+  let sx = pointerStart.x, sy = pointerStart.y;
+  let svx = vx, svy = vy;
+  const GRAVITY = 0.38;
+
+  ctx.save();
+  for (let i = 0; i < numDots; i++) {
+    sx += svx;
+    sy += svy;
+    svy += GRAVITY;
+
+    const progress = i / numDots;
+    // Dots fade out toward the end of the arc
+    const alpha = (1 - progress * 0.75) * (0.4 + ratio * 0.6);
+    const size = maxDotSize * (1 - progress * 0.5);
+
+    ctx.beginPath();
+    ctx.arc(sx, sy, size, 0, Math.PI * 2);
+    ctx.fillStyle = powerColor(alpha);
+    ctx.shadowColor = powerColor(1);
+    ctx.shadowBlur = glowBlur * (1 - progress * 0.5);
+    ctx.fill();
+  }
+
+  // Power ring around launch point
+  ctx.beginPath();
+  ctx.arc(pointerStart.x, pointerStart.y, 18 + ratio * 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
+  ctx.strokeStyle = powerColor(0.9);
+  ctx.lineWidth = 2.5 + ratio * 2;
+  ctx.shadowColor = powerColor(1);
+  ctx.shadowBlur = 10 + ratio * 14;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ---- PARTICLES DRAW ----
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = p.alpha;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+// ---- PHYSICS & COLLISION ----
+const GRAVITY = 0.38;
+
+function rectCircleCollision(rx, ry, rw, rh, cx, cy, cr) {
+  const nearX = Math.max(rx, Math.min(cx, rx + rw));
+  const nearY = Math.max(ry, Math.min(cy, ry + rh));
+  const dx = cx - nearX, dy = cy - nearY;
+  return dx * dx + dy * dy < cr * cr;
+}
+
+function updateBall() {
+  if (!ball || !ball.launched) return;
+
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+  ball.vy += GRAVITY;
+
+  // Wall bounce
+  if (ball.x - ball.radius < 0) { ball.x = ball.radius; ball.vx *= -0.6; }
+  if (ball.x + ball.radius > canvas.width) { ball.x = canvas.width - ball.radius; ball.vx *= -0.6; }
+
+  // Obstacle collisions
+  obstacles.forEach(obs => {
+    if (rectCircleCollision(obs.x, obs.y, obs.w, obs.h, ball.x, ball.y, ball.radius)) {
+      // Bounce off top/bottom
+      const fromTop = ball.y < obs.y + obs.h / 2;
+      ball.vy = fromTop ? -Math.abs(ball.vy) * 0.7 : Math.abs(ball.vy) * 0.7;
+      ball.vx *= 0.8;
+      triggerShake(3);
+      spawnMissParticles(ball.x, ball.y);
+    }
+  });
+
+  // Hoop detection
+  if (hoop && !ball.scored && !ball.missed) {
+    const hw = hoop.width / 2;
+    const rimW = hoop.rimW;
+    const leftRimX = hoop.x - hw;
+    const rightRimX = hoop.x + hw;
+    const rimY = hoop.y;
+
+    // Detect ball passing UP through the hoop from below — disqualifies it
+    if (ball.vy < 0 && !ball.passedHoopY) {
+      if (ball.y > rimY - ball.radius && ball.y < rimY + hoop.width * 0.5) {
+        if (ball.x > leftRimX + rimW && ball.x < rightRimX - rimW) {
+          ball.wentThroughBottom = true; // came from below — can never score
+        }
+      }
+    }
+
+    // Track whether ball has been above the hoop level
+    if (ball.y < rimY - ball.radius) {
+      ball.wasAboveHoop = true;
+    }
+
+    // Check pass-through going DOWN — must have come from above AND never gone up through it
+    if (ball.vy > 0 && ball.wasAboveHoop && !ball.wentThroughBottom && !ball.passedHoopY) {
+      if (ball.y > rimY - ball.radius && ball.y < rimY + hoop.width * 0.5) {
+        if (ball.x > leftRimX + rimW && ball.x < rightRimX - rimW) {
+          ball.scored = true;
+          ball.passedHoopY = true;
+          const isSwish = !ball.bounced;
+          if (isSwish) playSwish(); else playSwoosh();
+          triggerFlash('rgba(0, 255, 120, 1)');
+          handleScore(isSwish);
+        }
+      }
+    }
+
+    // Rim collision — skip entirely if ball already scored (let it fall through cleanly)
+    if (!ball.scored) {
+      const dxL = ball.x - leftRimX, dyL = ball.y - rimY;
+      if (Math.sqrt(dxL * dxL + dyL * dyL) < ball.radius + rimW * 2 && ball.y <= rimY + rimW * 3) {
+        ball.vx = (ball.x < leftRimX ? -1 : 1) * Math.abs(ball.vx) * 0.55 + (ball.x < leftRimX ? -0.5 : 0.5);
+        ball.vy *= -0.55;
+        ball.bounced = true;
+        triggerShake(4);
+      }
+
+      const dxR = ball.x - rightRimX, dyR = ball.y - rimY;
+      if (Math.sqrt(dxR * dxR + dyR * dyR) < ball.radius + rimW * 2 && ball.y <= rimY + rimW * 3) {
+        ball.vx = (ball.x > rightRimX ? 1 : -1) * Math.abs(ball.vx) * 0.55 + (ball.x > rightRimX ? 0.5 : -0.5);
+        ball.vy *= -0.55;
+        ball.bounced = true;
+        triggerShake(4);
+      }
+    }
+  }
+
+  // Ball off screen (miss)
+  if (ball.y > canvas.height + ball.radius * 2) {
+    if (!ball.scored) {
+      handleMiss();
+    } else {
+      resetBallForNextShot();
+    }
+  }
+}
+
+function handleScore(isSwish = false) {
+  score++;
+  consecutiveMakes++;
+  triggerShake(8);
+  spawnScoreParticles(hoop.x, hoop.y, HOOP_COLORS[hoopColorIdx]);
+  spawnScoreParticles(hoop.x, hoop.y, BALL_COLORS[selectedColorIdx].color);
+  hudScore.textContent = score;
+
+  // Combo flash — swish vs bank/rim shot vs streak
+  if (consecutiveMakes >= 3) {
+    showComboFlash(`🔥 ${consecutiveMakes}x STREAK!`);
+  } else if (isSwish) {
+    showComboFlash('SWISH! 🏀');
+  } else {
+    showComboFlash('GOOD SHOT!');
+  }
+
+  // Level up every 5 baskets
+  const newLevel = Math.floor(score / 5) + 1;
+  if (newLevel > level) {
+    level = newLevel;
+  }
+
+  // Always sync obstacle count to current score (score-based, not level-based)
+  const targetObstacles = getObstacleCount();
+  while (obstacles.length < targetObstacles) {
+    obstacles.push(spawnObstacle());
+  }
+
+  // High score
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem('neonSwishHigh', highScore);
+    hudBest.textContent = 'BEST: ' + highScore;
+  }
+}
+
+function handleMiss() {
+  consecutiveMakes = 0;
+  lives--;
+  triggerShake(12);
+  triggerFlash('rgba(255, 30, 30, 1)');
+  spawnMissParticles(ball.x, ball.y);
+  updateLivesUI();
+
+  if (lives <= 0) {
+    setTimeout(() => endGame(), 500);
+  } else {
+    showComboFlash('MISS!');
+    resetBallForNextShot();
+  }
+}
+
+function resetBallForNextShot() {
+  ball = null;
+  trails = [];
+  aimActive = false;
+}
+
+function updateLivesUI() {
+  const dots = hudLives.querySelectorAll('.life-dot');
+  dots.forEach((d, i) => {
+    if (i >= lives) d.classList.add('lost');
+  });
+}
+
+function showLevelBadge() {
+  levelBadge.textContent = `LEVEL ${level}`;
+  levelBadge.style.opacity = '1';
+  setTimeout(() => { levelBadge.style.opacity = '0'; }, 1400);
+}
+
+function showComboFlash(text) {
+  comboFlash.textContent = text;
+  comboFlash.style.opacity = '1';
+  comboFlash.style.transition = 'none';
+  setTimeout(() => {
+    comboFlash.style.transition = 'opacity 0.5s';
+    comboFlash.style.opacity = '0';
+  }, 700);
+}
+
+// ---- GAME LOOP ----
+function gameLoop() {
+  if (gameState !== 'playing') return;
+
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+
+  drawBackground();
+  drawObstacles();
+  drawHoop();
+  drawAimLine();
+  drawBall();
+  drawParticles();
+
+  ctx.restore();
+
+  updateBall();
+  updateHoop();
+  updateObstacles();
+  updateParticles();
+  updateShake();
+
+  frameId = requestAnimationFrame(gameLoop);
+}
+
+// ---- START GAME ----
+function startGame() {
+  score = 0;
+  lives = 3;
+  level = 1;
+  consecutiveMakes = 0;
+  ball = null;
+  trails = [];
+  obstacles = [];
+  particles = [];
+  hoopColorIdx = 0;
+  hoopColorTimer = 0;
+  aimActive = false;
+  pointerDown = false;
+
+  initStars();
+  hoop = createHoop();
+
+  // Read and save initials
+  const initialsInput = document.getElementById('initialsInput');
+  playerInitials = initialsInput.value.trim().toUpperCase() || '???';
+  localStorage.setItem('neonSwishInitials', playerInitials);
+  document.getElementById('hudInitials').textContent = playerInitials;
+  document.getElementById('initialsInput').value = playerInitials;
+
+  hudScore.textContent = '0';
+  hudBest.textContent = 'BEST: ' + highScore;
+
+  // Build lives UI
+  hudLives.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    const d = document.createElement('div');
+    d.className = 'life-dot';
+    hudLives.appendChild(d);
+  }
+
+  gameState = 'playing';
+  titleScreen.classList.add('hidden');
+  gameOverScreen.classList.add('hidden');
+  hud.classList.remove('hidden');
+  musicToggle.classList.remove('hidden');
+  pauseBtn.classList.remove('hidden');
+
+  cancelAnimationFrame(frameId);
+  gameLoop();
+  startMusic();
+}
+
+// ---- END GAME ----
+const GAME_OVER_MSGS = [
+  "BETTER LUCK NEXT TIME, ROOKIE",
+  "THE HOOP FOUGHT BACK",
+  "SO CLOSE... TRY AGAIN",
+  "THE NEON GODS DEMAND MORE",
+  "SWISH OR GO HOME",
+  "THAT RIM DISRESPECTED YOU",
+  "INSERT COIN TO CONTINUE",
+];
+
+function endGame() {
+  gameState = 'gameover';
+  cancelAnimationFrame(frameId);
+  stopMusic();
+  setTimeout(playGameOverJingle, 200);
+
+  finalScore.textContent = score;
+  const isNewHigh = score >= highScore && score > 0;
+  highScoreDisplay.textContent = isNewHigh ? '🏆 NEW HIGH SCORE!' : 'BEST: ' + highScore;
+  gameOverMsg.textContent = isNewHigh
+    ? "LEGENDARY. THE NEON COURT BOWS."
+    : GAME_OVER_MSGS[Math.floor(Math.random() * GAME_OVER_MSGS.length)];
+
+  hud.classList.add('hidden');
+  musicToggle.classList.add('hidden');
+  pauseBtn.classList.add('hidden');
+  pauseScreen.classList.add('hidden');
+  document.getElementById('gameOverInitials').textContent = playerInitials ? playerInitials + "'S GAME" : '';
+  gameOverScreen.classList.remove('hidden');
+}
+
+// ---- INPUT HANDLING ----
+function getPointerPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const touch = e.touches ? e.touches[0] || e.changedTouches[0] : e;
+  return {
+    x: (touch.clientX - rect.left) * scaleX,
+    y: (touch.clientY - rect.top) * scaleY
+  };
+}
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (gameState !== 'playing') return;
+  if (ball && ball.launched) return; // ball in flight
+  const pos = getPointerPos(e);
+  if (pos.y < canvas.height * 0.5) return; // must shoot from bottom half
+  pointerDown = true;
+  pointerStart = pos;
+  pointerCurrent = pos;
+  aimActive = true;
+  ball = createBall(pos.x, pos.y);
+  trails = [];
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!pointerDown || !aimActive) return;
+  pointerCurrent = getPointerPos(e);
+  // Update ball position to finger
+  if (ball && !ball.launched) {
+    ball.x = pointerStart.x;
+    ball.y = pointerStart.y;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (!pointerDown || !aimActive || !ball) return;
+  pointerCurrent = getPointerPos(e);
+  const dx = pointerStart.x - pointerCurrent.x;
+  const dy = pointerStart.y - pointerCurrent.y;
+  const power = Math.min(Math.sqrt(dx * dx + dy * dy), 220);
+
+  if (power > 10) {
+    const angle = Math.atan2(dy, dx);
+    ball.vx = Math.cos(angle) * power * 0.13;
+    ball.vy = Math.sin(angle) * power * 0.13;
+    ball.launched = true;
+    trails = [];
+  } else {
+    // Too small — cancel
+    ball = null;
+  }
+  pointerDown = false;
+  aimActive = false;
+}, { passive: false });
+
+// Mouse support (for desktop testing)
+canvas.addEventListener('mousedown', e => {
+  if (gameState !== 'playing') return;
+  if (ball && ball.launched) return;
+  const pos = getPointerPos(e);
+  if (pos.y < canvas.height * 0.5) return; // must shoot from bottom half
+  pointerDown = true;
+  pointerStart = pos;
+  pointerCurrent = pos;
+  aimActive = true;
+  ball = createBall(pos.x, pos.y);
+  trails = [];
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!pointerDown) return;
+  pointerCurrent = getPointerPos(e);
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (!pointerDown || !ball) return;
+  pointerCurrent = getPointerPos(e);
+  const dx = pointerStart.x - pointerCurrent.x;
+  const dy = pointerStart.y - pointerCurrent.y;
+  const power = Math.min(Math.sqrt(dx * dx + dy * dy), 220);
+  if (power > 10) {
+    const angle = Math.atan2(dy, dx);
+    ball.vx = Math.cos(angle) * power * 0.13;
+    ball.vy = Math.sin(angle) * power * 0.13;
+    ball.launched = true;
+    trails = [];
+  } else {
+    ball = null;
+  }
+  pointerDown = false;
+  aimActive = false;
+});
+
+// ---- BUTTONS ----
+document.getElementById('playBtn').addEventListener('click', startGame);
+document.getElementById('replayBtn').addEventListener('click', startGame);
+
+// ---- MUSIC (Web Audio API chiptune) ----
+let audioCtx = null;
+let musicPlaying = false;
+let musicInterval = null;
+let currentMelodyIdx = 0;
+
+// ---- MELODIES: 4 tracks, each faster/more intense ----
+// Each note: [frequency Hz, duration seconds]
+// Track 0 (0-5 pts): slow, chill synthwave
+const MELODY_0 = [
+  [261.6,0.16],[329.6,0.16],[392,0.16],[523.2,0.16],
+  [440,0.16],[392,0.16],[349.2,0.16],[329.6,0.32],
+  [261.6,0.16],[311.1,0.16],[369.9,0.16],[493.9,0.16],
+  [440,0.16],[369.9,0.16],[329.6,0.16],[261.6,0.32],
+];
+// Track 1 (6-11 pts): medium pace, slightly higher pitch
+const MELODY_1 = [
+  [392,0.12],[493.9,0.12],[587.3,0.12],[698.5,0.12],
+  [659.3,0.12],[587.3,0.12],[523.2,0.12],[493.9,0.24],
+  [392,0.12],[440,0.12],[523.2,0.12],[659.3,0.12],
+  [587.3,0.12],[523.2,0.12],[493.9,0.12],[392,0.24],
+];
+// Track 2 (12-19 pts): faster, more urgent
+const MELODY_2 = [
+  [523.2,0.09],[659.3,0.09],[784,0.09],[1046.5,0.09],
+  [880,0.09],[784,0.09],[698.5,0.09],[659.3,0.18],
+  [523.2,0.09],[587.3,0.09],[698.5,0.09],[880,0.09],
+  [784,0.09],[698.5,0.09],[659.3,0.09],[523.2,0.18],
+];
+// Track 3 (20+ pts): fast and intense, higher octave
+const MELODY_3 = [
+  [1046.5,0.07],[1318.5,0.07],[1568,0.07],[1046.5,0.07],
+  [880,0.07],[1046.5,0.07],[784,0.07],[698.5,0.14],
+  [1046.5,0.07],[880,0.07],[784,0.07],[698.5,0.07],
+  [659.3,0.07],[698.5,0.07],[784,0.07],[1046.5,0.14],
+];
+
+const MELODIES = [MELODY_0, MELODY_1, MELODY_2, MELODY_3];
+
+function getMelodyIdx() {
+  if (score < 6)  return 0;
+  if (score < 12) return 1;
+  if (score < 20) return 2;
+  return 3;
+}
+
+function startMusic() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (musicPlaying) return;
+  musicPlaying = true;
+  currentMelodyIdx = getMelodyIdx();
+  musicToggle.textContent = '♪ ON';
+  playMelodyLoop();
+}
+
+function playMelodyLoop() {
+  if (!musicPlaying || !audioCtx) return;
+  let noteIdx = 0;
+  let startTime = audioCtx.currentTime;
+  const melodyIdx = getMelodyIdx();
+
+  // If melody tier changed, restart loop with new melody
+  if (melodyIdx !== currentMelodyIdx) {
+    currentMelodyIdx = melodyIdx;
+  }
+
+  const MELODY = MELODIES[currentMelodyIdx];
+
+  function scheduleNote() {
+    if (!musicPlaying) return;
+
+    // Check if we need to switch melody tier
+    const newIdx = getMelodyIdx();
+    if (newIdx !== currentMelodyIdx) {
+      currentMelodyIdx = newIdx;
+      clearTimeout(musicInterval);
+      playMelodyLoop(); // restart with new melody
+      return;
+    }
+
+    const [freq, dur] = MELODY[noteIdx % MELODY.length];
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'square';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.04, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur * 0.88);
+    osc.start(startTime);
+    osc.stop(startTime + dur);
+    startTime += dur;
+    noteIdx++;
+    if (noteIdx >= MELODY.length) { noteIdx = 0; }
+    musicInterval = setTimeout(scheduleNote, Math.max(0, (startTime - audioCtx.currentTime - 0.1) * 1000));
+  }
+
+  scheduleNote();
+}
+
+function stopMusic() {
+  musicPlaying = false;
+  clearTimeout(musicInterval);
+}
+
+// ---- GAME OVER JINGLE (gentle descending 8-bit) ----
+function playGameOverJingle() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const notes = [
+    [392, 0.15], [349.2, 0.15], [329.6, 0.15], [293.7, 0.15],
+    [261.6, 0.30],
+  ];
+  let t = audioCtx.currentTime + 0.05;
+  notes.forEach(([freq, dur]) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine'; // sine is much softer than square
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.05, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.9);
+    osc.start(t);
+    osc.stop(t + dur);
+    t += dur;
+  });
+}
+
+musicToggle.addEventListener('click', () => {
+  if (musicPlaying) {
+    stopMusic();
+    musicToggle.textContent = '♪ OFF';
+  } else {
+    startMusic();
+    musicToggle.textContent = '♪ ON';
+  }
+});
+
+// ---- PAUSE ----
+let paused = false;
+const pauseBtn = document.getElementById('pauseBtn');
+const pauseScreen = document.getElementById('pauseScreen');
+const resumeBtn = document.getElementById('resumeBtn');
+
+function pauseGame() {
+  if (gameState !== 'playing') return;
+  paused = true;
+  cancelAnimationFrame(frameId);
+  stopMusic();
+  pauseScreen.classList.remove('hidden');
+  pauseBtn.textContent = '⏸ PAUSE';
+}
+
+function resumeGame() {
+  paused = false;
+  pauseScreen.classList.add('hidden');
+  gameLoop();
+  startMusic();
+}
+
+pauseBtn.addEventListener('click', pauseGame);
+resumeBtn.addEventListener('click', resumeGame);
+
+// Swoosh sound
+function playSwoosh() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.2);
+  gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.2);
+}
+
+// Pure swish sound — clean net whoosh, layered tones
+function playSwish() {
+  if (!audioCtx) return;
+  // Layer 1: soft high whoosh descending
+  const osc1 = audioCtx.createOscillator();
+  const gain1 = audioCtx.createGain();
+  osc1.connect(gain1);
+  gain1.connect(audioCtx.destination);
+  osc1.type = 'sine';
+  osc1.frequency.setValueAtTime(1200, audioCtx.currentTime);
+  osc1.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.35);
+  gain1.gain.setValueAtTime(0.12, audioCtx.currentTime);
+  gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+  osc1.start();
+  osc1.stop(audioCtx.currentTime + 0.35);
+
+  // Layer 2: slightly delayed mid swish
+  const osc2 = audioCtx.createOscillator();
+  const gain2 = audioCtx.createGain();
+  osc2.connect(gain2);
+  gain2.connect(audioCtx.destination);
+  osc2.type = 'sine';
+  osc2.frequency.setValueAtTime(900, audioCtx.currentTime + 0.05);
+  osc2.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.4);
+  gain2.gain.setValueAtTime(0.0, audioCtx.currentTime);
+  gain2.gain.setValueAtTime(0.09, audioCtx.currentTime + 0.05);
+  gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+  osc2.start(audioCtx.currentTime + 0.05);
+  osc2.stop(audioCtx.currentTime + 0.4);
+
+  // Layer 3: soft noise burst for the "net" texture
+  const bufferSize = audioCtx.sampleRate * 0.15;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  const noiseGain = audioCtx.createGain();
+  const noiseFilter = audioCtx.createBiquadFilter();
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.value = 2000;
+  noiseFilter.Q.value = 0.8;
+  noise.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(audioCtx.destination);
+  noiseGain.gain.setValueAtTime(0.08, audioCtx.currentTime + 0.1);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+  noise.start(audioCtx.currentTime + 0.1);
+}
+
+// Clank sound
+function playClank() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.3);
+  gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.3);
+}
+
+// Hook into handleScore/handleMiss for sounds
+const _origHandleScore = handleScore;
+const _origHandleMiss = handleMiss;
+
+// Patch score/miss to add sounds
+function handleScoreWithSound() {
+  playSwoosh();
+  _origHandleScore();
+}
+
+function handleMissWithSound() {
+  playClank();
+  _origHandleMiss();
+}
+
+// Override in updateBall references — patch via re-definition
+// (Re-referencing the local versions by wrapping updateBall)
+const _origUpdateBall = updateBall;
+
+// We patch directly at the call site in gameLoop by overriding handleScore/handleMiss
+// Since JS doesn't easily hot-patch, we redefine the ball update inline:
+
+// ---- Init title screen background ----
+initStars();
+(function titleBg() {
+  if (gameState !== 'title' && gameState !== 'gameover') return;
+  ctx.save();
+  drawBackground();
+  // Draw decorative hoop on title
+  if (gameState === 'title') {
+    hoopColorTimer++;
+    if (hoopColorTimer > 60) { hoopColorTimer = 0; hoopColorIdx = (hoopColorIdx + 1) % HOOP_COLORS.length; }
+    const demoHoop = { x: canvas.width / 2, y: canvas.height * 0.55, width: canvas.width * 0.28, rimW: canvas.width * 0.012 };
+    const oh = hoop;
+    hoop = demoHoop;
+    drawHoop();
+    hoop = oh;
+  }
+  ctx.restore();
+  requestAnimationFrame(titleBg);
+})();
+
+</script>
+</body>
+</html>
